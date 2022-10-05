@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -17,13 +16,22 @@ func checkError(err error) {
 }
 
 func main() {
-	// ./bytestream host:port number_of_bytes
-	if len(os.Args) != 3 {
-		log.Fatalf("Usage: %s {host:port} {number_of_bytes}", os.Args[0])
+	// ./bytestream {host:port} {number_of_bytes} [delay] [seed] [send_length]
+	// delay is in milliseconds (default 100) optional
+	// seed is for the random number generator (default 0) optional
+	// send_length is the number of bytes to send at a time (default 1) optional
+	if len(os.Args) < 3 {
+		log.Fatalf("Usage: %s host:port number_of_bytes [delay] [seed] [send_length]", os.Args[0])
 	}
+
 	service := os.Args[1]
 	nbytes, err := strconv.Atoi(os.Args[2])
 	checkError(err)
+
+	//if nbytes is not 1, then round up to the nearest 100 bytes
+	if nbytes != 1 {
+		nbytes = (nbytes/100 + 1) * 100
+	}
 
 	conn, err := net.Dial("tcp", service)
 	checkError(err)
@@ -33,14 +41,24 @@ func main() {
 
 	rand.Read(buf)
 
-	// send bytes one by one over the connection
-	for i := 0; i < nbytes; i++ {
-		// send one byte
-		// log bytes sent
-		// sleep for 1 second
-		fmt.Printf("Sending byte %d: %d \n", i, buf[i])
-		conn.Write(buf[i : i+1])
-		time.Sleep(1 * time.Second)
+	delay := 100
+	seed := 0
+	send_length := 1
+	if len(os.Args) > 3 {
+		delay, err = strconv.Atoi(os.Args[3])
+		checkError(err)
+		seed, err = strconv.Atoi(os.Args[4])
+		checkError(err)
+		send_length, err = strconv.Atoi(os.Args[5])
+		checkError(err)
+	}
+
+	rand.Seed(int64(seed))
+
+	for i := 0; i < nbytes; i += send_length {
+		conn.Write(buf[i : i+send_length])
+		time.Sleep(time.Duration(delay) * time.Millisecond)
+		log.Printf("Sent data: %d", buf[i:i+send_length])
 	}
 
 }
